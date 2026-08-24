@@ -1,0 +1,93 @@
+# Production deployment for cally.bond (Ubuntu VPS)
+# Usage: docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# nginx (host) proxies 80/443 -> this stack (see deploy/nginx/cally.bond.conf)
+#
+# Postgres runs NATIVELY on the VPS host (no DB container). The DATABASE_URL in
+# .env.prod must point at the host DB, e.g. postgresql://user:pass@host.docker.internal:5432/cally
+
+services:
+  redis:
+    container_name: cally_redis
+    image: redis:7-alpine
+    restart: always
+    volumes:
+      - redis-data:/data
+    networks:
+      - cally
+
+  calcom:
+    container_name: cally_web
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_WEBAPP_URL: https://cally.bond
+        NEXT_PUBLIC_API_V2_URL: https://cally.bond/api/v2
+        NEXT_PUBLIC_WEBSITE_TERMS_URL: https://cally.bond/legal/terms
+        NEXT_PUBLIC_WEBSITE_PRIVACY_POLICY_URL: https://cally.bond/legal/privacy
+        NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+        CALENDSO_ENCRYPTION_KEY: ${CALENDSO_ENCRYPTION_KEY}
+        CALCOM_TELEMETRY_DISABLED: "1"
+        DATABASE_URL: ${DATABASE_URL}
+        CSP_POLICY: ${CSP_POLICY}
+    restart: always
+    env_file: .env.prod
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_DIRECT_URL: ${DATABASE_URL}
+      REDIS_URL: redis://redis:6379
+    networks:
+      - cally
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    expose:
+      - "3000"
+    depends_on:
+      redis:
+        condition: service_started
+
+  calcom-api:
+    container_name: cally_api
+    build:
+      context: .
+      dockerfile: apps/api/v2/Dockerfile
+      args:
+        DATABASE_URL: ${DATABASE_URL}
+        DATABASE_DIRECT_URL: ${DATABASE_URL}
+    restart: always
+    env_file: .env.prod
+    environment:
+      NODE_ENV: production
+      API_PORT: 5555
+      API_URL: https://cally.bond
+      DATABASE_URL: ${DATABASE_URL}
+      DATABASE_DIRECT_URL: ${DATABASE_URL}
+      DATABASE_READ_URL: ${DATABASE_URL}
+      DATABASE_WRITE_URL: ${DATABASE_URL}
+      REDIS_URL: redis://redis:6379
+      USE_POOL: "false"
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      API_KEY_PREFIX: ${API_KEY_PREFIX:-cal_}
+      WEB_APP_URL: https://cally.bond
+      IS_TEAM_BILLING_ENABLED: ${IS_TEAM_BILLING_ENABLED:-false}
+      STRIPE_API_KEY: ${STRIPE_API_KEY}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}
+      STRIPE_PRICE_ID_STARTER: ${STRIPE_PRICE_ID_STARTER}
+      STRIPE_PRICE_ID_ESSENTIALS: ${STRIPE_PRICE_ID_ESSENTIALS}
+      STRIPE_PRICE_ID_ENTERPRISE: ${STRIPE_PRICE_ID_ENTERPRISE}
+    networks:
+      - cally
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    expose:
+      - "5555"
+    depends_on:
+      redis:
+        condition: service_started
+
+volumes:
+  redis-data:
+
+networks:
+  cally:
+    name: cally

@@ -1,0 +1,62 @@
+name: Deploy to cally.bond VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build & deploy on runner server
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+
+            APP_DIR=/var/www/public/cally
+            ENV_MASTER=/var/www/public/cally/.env.master
+            ENV_PROD=$APP_DIR/.env.prod
+
+            echo "==> Verifying env master file"
+            [ -f "$ENV_MASTER" ] || { echo "ERROR: $ENV_MASTER not found"; exit 1; }
+
+            echo "==> Syncing repository"
+            git -C "$APP_DIR" fetch origin
+            git -C "$APP_DIR" checkout main
+            git -C "$APP_DIR" reset --hard origin/main
+
+            echo "==> Building production env from .env.master"
+            # .env.master holds the native Postgres credentials and all app secrets.
+            # Use it directly as the compose env file (DATABASE_URL points at the
+            # host Postgres, e.g. postgresql://user:pass@host.docker.internal:5432/cally).
+            cp "$ENV_MASTER" "$ENV_PROD"
+
+            echo "==> Building Docker images (takes several minutes)"
+            cd "$APP_DIR"
+            docker compose -f docker-compose.prod.yml --env-file "$ENV_PROD" build
+
+            echo "==> Applying database migrations (host Postgres)"
+            docker compose -f docker-compose.prod.yml --env-file "$ENV_PROD" run --rm calcom \
+              npx prisma migrate deploy --schema /calcom/packages/prisma/schema.prisma
+
+            echo "==> Starting stack"
+            docker compose -f docker-compose.prod.yml --env-file "$ENV_PROD" up -d
+
+            echo "==> Pruning old images"
+            docker image prune -f >/dev/null || true
+
+            echo "==> Status"
+            docker compose -f docker-compose.prod.yml --env-file "$ENV_PROD" ps
+            echo "Deployment complete: https://cally.bond"
