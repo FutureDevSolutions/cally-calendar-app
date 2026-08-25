@@ -1,6 +1,6 @@
 {
-    "name": "Cal.diy",
-    "short_name": "Cal.diy",
+    "name": "Cally",
+    "short_name": "Cally",
     "description": "Scheduling infrastructure for absolutely everyone.",
     "icons": [
         {
@@ -14,7 +14,7 @@
             "type": "image/png"
         }
     ],
-    "theme_color": "#ffffff",
+    "theme_color": "#0D9488",
     "background_color": "#ffffff",
     "display_override": ["minimal-ui"],
     "display": "standalone",

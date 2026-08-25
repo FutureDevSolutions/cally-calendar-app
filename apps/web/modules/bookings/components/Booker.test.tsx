@@ -182,7 +182,7 @@ describe("Booker", () => {
     constantsScenarios.set({
       PUBLIC_QUICK_AVAILABILITY_ROLLOUT: "100",
       POWERED_BY_URL: "https://go.cal.com/booking",
-      APP_NAME: "Cal.diy",
+      APP_NAME: "Cally",
     });
     vi.clearAllMocks();
   });

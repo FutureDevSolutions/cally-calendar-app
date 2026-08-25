@@ -39,30 +39,23 @@ echo "Postgres role 'cally' / db 'cally' created (default password 'cally' — c
 
 echo "==> Configuring UFW firewall"
 ufw allow OpenSSH
-ufw allow 'Nginx Full'
+# App is reached via FDS-DnS edge nginx -> this host :3001 (not local public TLS)
+ufw allow 3001/tcp comment 'cally.bond via FDS-DnS'
+# Optional: if you also terminate TLS on this host
+ufw allow 'Nginx Full' || true
 ufw --force enable
 
-echo "==> Installing nginx site config"
-cp deploy/nginx/cally.bond.conf /etc/nginx/sites-available/cally.bond.conf
-ln -sf /etc/nginx/sites-available/cally.bond.conf /etc/nginx/sites-enabled/cally.bond.conf
-rm -f /etc/nginx/sites-enabled/default
-nginx -t
-systemctl reload nginx
-
-echo "==> Setting up Let's Encrypt SSL (interactive)"
-echo "Make sure DNS for $DOMAIN points to this server's IP first."
-echo "Press Enter when ready, then follow the prompts."
-read -r
-certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" --redirect --agree-tos --no-eff-email || \
-  echo "Certbot failed — run manually: certbot --nginx -d $DOMAIN -d www.$DOMAIN"
-
-echo "==> Enabling certbot auto-renewal"
-systemctl enable --now certbot.timer
+echo "==> Skipping local nginx site install (TLS/proxy owned by FDS-DnS -> :3001)"
+echo "    Canonical nginx: FDS-DnS/ServerDNS/sites-available/cally.bond.conf"
+# Keep a local copy for reference only
+mkdir -p /etc/nginx/sites-available
+cp deploy/nginx/cally.bond.conf /etc/nginx/sites-available/cally.bond.conf.fds-dns-reference || true
 
 echo ""
 echo "Setup complete. Next steps:"
 echo "  1. Clone the repo into $APP_DIR"
-echo "  2. Create $APP_DIR/.env.master  (see deploy/README.md for the required variables;"
-echo "     DATABASE_URL must point at the host Postgres, e.g.:"
-echo "     DATABASE_URL=\"postgresql://cally:<password>@host.docker.internal:5432/cally\")"
-echo "  3. sudo bash deploy/scripts/deploy.sh   (or push to main to trigger the CI/CD pipeline)"
+echo "  2. Create $APP_DIR/.env.master from .env.prod.example"
+echo "     DATABASE_URL=\"postgresql://cally:<password>@host.docker.internal:5432/cally\""
+echo "  3. bash deploy/scripts/deploy.sh"
+echo "  4. Confirm FDS-DnS proxies https://cally.bond -> http://192.168.194.35:3001"
+echo "  5. Push FDS-DnS if you changed cally.bond.conf"

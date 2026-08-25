@@ -40,8 +40,9 @@ services:
       - cally
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    expose:
-      - "3000"
+    # FDS-DnS edge nginx proxies https://cally.bond -> 192.168.194.35:3001
+    ports:
+      - "3001:3000"
     depends_on:
       redis:
         condition: service_started
