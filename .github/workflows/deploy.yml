@@ -10,7 +10,7 @@ jobs:
     runs-on: [self-hosted, Linux, X64, live]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Deploy
         run: |
           set -euo pipefail
@@ -19,29 +19,28 @@ jobs:
           ENV_MASTER=$APP_DIR/.env.master
           ENV_PROD=$APP_DIR/.env.prod
 
-            echo "==> Verifying env master file"
-            [ -f "$ENV_MASTER" ] || { echo "ERROR: $ENV_MASTER not found"; exit 1; }
+          echo "==> Verifying env master file"
+          [ -f "$ENV_MASTER" ] || { echo "ERROR: $ENV_MASTER not found"; exit 1; }
 
+          echo "==> Building production env from .env.master"
+          # .env.master holds the native Postgres credentials and all app secrets.
+          # Use it directly as the compose env file (DATABASE_URL points at the
+          # host Postgres, e.g. postgresql://user:pass@host.docker.internal:5432/cally).
+          cp "$ENV_MASTER" "$ENV_PROD"
 
-            echo "==> Building production env from .env.master"
-            # .env.master holds the native Postgres credentials and all app secrets.
-            # Use it directly as the compose env file (DATABASE_URL points at the
-            # host Postgres, e.g. postgresql://user:pass@host.docker.internal:5432/cally).
-            cp "$ENV_MASTER" "$ENV_PROD"
+          echo "==> Building Docker images (takes several minutes)"
+          docker compose -f docker-compose.prod.yml --env-file "$ENV_PROD" build
 
-            echo "==> Building Docker images (takes several minutes)"
-            docker compose -f docker-compose.prod.yml --env-file "$ENV_PROD" build
+          echo "==> Applying database migrations (host Postgres)"
+          docker compose -f docker-compose.prod.yml --env-file "$ENV_PROD" run --rm calcom \
+            npx prisma migrate deploy --schema /calcom/packages/prisma/schema.prisma
 
-            echo "==> Applying database migrations (host Postgres)"
-            docker compose -f docker-compose.prod.yml --env-file "$ENV_PROD" run --rm calcom \
-              npx prisma migrate deploy --schema /calcom/packages/prisma/schema.prisma
+          echo "==> Starting stack"
+          docker compose -f docker-compose.prod.yml --env-file "$ENV_PROD" up -d
 
-            echo "==> Starting stack"
-            docker compose -f docker-compose.prod.yml --env-file "$ENV_PROD" up -d
+          echo "==> Pruning old images"
+          docker image prune -f >/dev/null || true
 
-            echo "==> Pruning old images"
-            docker image prune -f >/dev/null || true
-
-            echo "==> Status"
-            docker compose -f docker-compose.prod.yml --env-file "$ENV_PROD" ps
-            echo "Deployment complete: https://cally.bond"
+          echo "==> Status"
+          docker compose -f docker-compose.prod.yml --env-file "$ENV_PROD" ps
+          echo "Deployment complete: https://cally.bond"
