@@ -257,6 +257,15 @@ const nextConfig = (phase: string): NextConfig => {
       unoptimized: true,
     },
     turbopack: {},
+    // Webpack (used on Windows to avoid Turbopack OOM) does not resolve `node:` URIs.
+    webpack: (config, { webpack }) => {
+      config.plugins.push(
+        new webpack.NormalModuleReplacementPlugin(/^node:/, (resource: { request: string }) => {
+          resource.request = resource.request.replace(/^node:/, "");
+        })
+      );
+      return config;
+    },
     async rewrites() {
       const { orgSlug } = nextJsOrgRewriteConfig;
       const beforeFiles = [
