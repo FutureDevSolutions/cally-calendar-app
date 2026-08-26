@@ -28,7 +28,6 @@ jobs:
             cp "$ENV_MASTER" "$ENV_PROD"
 
             echo "==> Building Docker images (takes several minutes)"
-            cd "$APP_DIR"
             docker compose -f docker-compose.prod.yml --env-file "$ENV_PROD" build
 
             echo "==> Applying database migrations (host Postgres)"
