@@ -1,19 +1,13 @@
-name: Deploy to cally.bond VPS
-
+name: Build and Deploy
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
-
-concurrency:
-  group: deploy-vps
-  cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Build & deploy on runner server
-    runs-on: ubuntu-latest
+  build-and-deploy-main:
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, X64, live]
     steps:
       - name: Deploy
         run: |
