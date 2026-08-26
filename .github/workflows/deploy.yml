@@ -20,10 +20,6 @@ jobs:
             echo "==> Verifying env master file"
             [ -f "$ENV_MASTER" ] || { echo "ERROR: $ENV_MASTER not found"; exit 1; }
 
-            echo "==> Syncing repository"
-            git -C "$APP_DIR" fetch origin
-            git -C "$APP_DIR" checkout main
-            git -C "$APP_DIR" reset --hard origin/main
 
             echo "==> Building production env from .env.master"
             # .env.master holds the native Postgres credentials and all app secrets.
